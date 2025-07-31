@@ -1,6 +1,4 @@
-from PTC_Interface.ActrPlatform import COMPONENT_ACTRPFERRMGR
-from PtcDefines import *
-from PtcItems import PtcItem, PtcField
+from privat.PtcDefines import *
 from PtcItems import ItemIdNotNumeric, PtcItem, PtcField
 
 DOCUMENT_TYPE_REQUIREMENT   = 'Requirement Document'
