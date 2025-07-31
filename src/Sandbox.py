@@ -1,8 +1,9 @@
 import subprocess
 from io import TextIOWrapper
+from abc import ABC, abstractmethod
 
 
-class Sandbox():
+class Sandbox(ABC):
     TYPE_NORMAL  = 0
     TYPE_VARIANT = 1
     TYPE_BUILD   = 2

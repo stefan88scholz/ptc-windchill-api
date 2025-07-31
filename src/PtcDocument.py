@@ -1,5 +1,4 @@
-from privat.PtcDefines import *
-from PtcItems import ItemIdNotNumeric, PtcItem, PtcField
+from src.PtcItem import ItemIdNotNumeric, PtcItem, PtcField
 
 DOCUMENT_TYPE_REQUIREMENT   = 'Requirement Document'
 DOCUMENT_TYPE_INTERFACE     = 'Interface Document'

@@ -1,6 +1,4 @@
 import subprocess
-from abc import ABC, abstractmethod
-from PtcDefines import *
 
 class ItemIdNotNumeric(Exception):
     """ Exception raised if Item Id not numeric"""
