@@ -1,4 +1,5 @@
 import subprocess
+from dataclasses import dataclass
 
 class ItemIdNotNumeric(Exception):
     """ Exception raised if Item Id not numeric"""
@@ -10,65 +11,115 @@ class ItemIdNotNumeric(Exception):
     def __str__(self) -> str:
         return f'{self.message} (Error Code: {self.error_code})'
 
+@dataclass()
 class PtcField:
-    def __init__(self, name: str, value: str = 'None') -> None:
-        self.name: str  = name
-        self.value: str = value
+    _name: str
+    _value: str = ''
+
+    @property
+    def name(self) -> str:
+        return self._name
+
+    @property
+    def value(self) -> str:
+        return self._value
+
+    @value.setter
+    def value(self, value: str) -> None:
+        self._value = value
 
     def __repr__(self) -> str:
-        return f'{self.name}: {self.value}'
+        return f'PtcItem({self.name}, {self.value})'
 
 
-class PtcItem():
+class PtcItem:
     """ Attributes and Methods of PTC Windchill items"""
-    def __init__(self, item_id: int):
+    def __init__(self, item_id: int | str):
         if not isinstance(item_id,int) and (isinstance(item_id, str) and not item_id.isnumeric()):
             raise ItemIdNotNumeric(f'Item with ID {item_id} is not numeric')
-        self.item_id: int                   = int(item_id)
-        self.fields: list[PtcField] = list()
-        self.id: PtcField = PtcField('ID', item_id)
-        self.fields.append(self.id)
-
-        self.type: PtcField = PtcField('Type')
-        self.fields.append(self.type)
-
-        self.summary: PtcField = PtcField('Summary')
-        self.fields.append(self.summary)
-
-        self.state: PtcField = PtcField('State')
-        self.fields.append(self.state)
-
-        self.project: PtcField = PtcField('Project')
-        self.fields.append(self.project)
-
-        self.assigned_user: PtcField = PtcField('Assigned User')
-        self.fields.append(self.assigned_user)
-
+        self._fields : dict[str, PtcField] = {
+            'ID': PtcField('ID', item_id),
+            'Type': PtcField('Type'),
+            'Summary': PtcField('Summary'),
+            'State': PtcField('State'),
+            'Assigned User': PtcField('Assigned User')
+        }
         self.item_report_raw: str  = ''
+
+    @property
+    def fields(self):
+        return self._fields
+
+    @fields.setter
+    def fields(self, value: dict[str, PtcField]) -> None:
+        self._fields.update(value)
+
+    @property
+    def id(self) -> PtcField:
+        return self._fields['ID']
+
+    @id.setter
+    def id(self, value: int | str) -> None:
+        if not isinstance(value,int) and (isinstance(value, str) and not value.isnumeric()):
+            raise ItemIdNotNumeric(f'ID {value} is not numeric')
+        self._fields['ID'].value = value
+
+    @property
+    def type(self) -> PtcField:
+        return self._fields['Type']
+
+    @type.setter
+    def type(self, value: str) -> None:
+        self._fields['Type'].value = value
+
+    @property
+    def summary(self) -> PtcField:
+        return self._fields['Summary']
+
+    @summary.setter
+    def summary(self, value: str) -> None:
+        self._fields['Summary'].value = value
+
+    @property
+    def state(self) -> PtcField:
+        return self._fields['State']
+
+    @state.setter
+    def state(self, value: str) -> None:
+        self._fields['State'].value = value
+
+    @property
+    def assigned_user(self) -> PtcField:
+        return self._fields['Assigned_user']
+
+    @assigned_user.setter
+    def assigned_user(self, value: str) -> None:
+        self._fields['Assigned_user'].value = value
+
 
     def __str__(self) -> str:
         result: str = str()
-        for field in self.fields:
+        for field in self.fields.values():
             result = result + field.name + ': ' + field.value + '\n'
         return result
 
     def update_fields(self) -> None:
-        for field in self.itemreport():
-            for i in range(0, len(self.fields)):
-                if field.startswith(self.fields[i].name + ':'):
-                    self.fields[i].value = field.replace(self.fields[i].name + ': ', '')
+        for field in self.item_report():
+            for i, (key,item) in enumerate(self._fields.items()):
+                if field.startswith(key + ':'):
+                    self._fields[key].value = field.replace(key + ': ', '')
 
-    def removefieldvalue(self, field_name: str, field_value: str):
+    def remove_field_value(self, field_name: str, field_value: str):
         #print(f'im editissue --removeFieldValues=\'{field_name}={field_value}\' {self.item_id}')
-        subprocess.run(f'im editissue --removeFieldValues=\'{field_name}={field_value}\' {self.item_id}',
+        subprocess.run(f'im editissue --removeFieldValues=\'{field_name}={field_value}\' {self._fields['ID'].value}',
                        stdout=subprocess.PIPE)
 
-    def addfieldvalue(self, field_name: str, field_value: str):
+    def add_field_value(self, field_name: str, field_value: str):
         #print(f'im editissue --addFieldValues=\'{field_name}={field_value}\' {self.item_id}')
-        subprocess.run(f'im editissue --addFieldValues=\'{field_name}={field_value}\' {self.item_id}',
+        subprocess.run(f'im editissue --addFieldValues=\'{field_name}={field_value}\' {self._fields['ID'].value}',
                        stdout=subprocess.PIPE)
 
-    def itemreport(self):
+    def item_report(self):
         self.item_report_raw = self.im_viewissue().stdout.decode(errors='surrogateescape').__str__()
         return self.item_report_raw.split('\n')
 
@@ -83,202 +134,501 @@ class PtcItem():
 
         """
         #print(f'im editissue --field=\'{field_name}={field_value}\' {self.item_id}')
-        return subprocess.run(f'im editissue --field=\'{field_name}={field_value}\' {self.item_id}')
+        return subprocess.run(f'im editissue --field=\'{field_name}={field_value}\' {self._fields['ID'].value}')
 
     def im_viewissue(self):
         #print(f'im viewissue {self.item_id}')
-        return subprocess.run(f'im viewissue {self.item_id}', stdout=subprocess.PIPE)
+        return subprocess.run(f'im viewissue {self._fields['ID'].value}', stdout=subprocess.PIPE)
 
 class WorkItem(PtcItem):
     def __init__(self, work_item_id: int | str) -> None:
         super().__init__(work_item_id)
-        self.component: PtcField = PtcField('Component')
-        self.fields.append(self.component)
-
-        self.variant: PtcField   = PtcField('Variant')
-        self.fields.append(self.variant)
-
-        self.contains_items: PtcField   = PtcField('Contains Items')
-        self.fields.append(self.contains_items)
-
-        self.belongs_to_work_item: PtcField   = PtcField('Belongs To Work Item')
-        self.fields.append(self.belongs_to_work_item)
-
+        self.fields.update(
+            {
+                'Component': PtcField('Component'),
+                'Variant': PtcField('Variant'),
+                'Contains Items': PtcField('Contains Items'),
+                'Belongs To Work Item': PtcField('Belongs To Work Item')
+            }
+        )
         self.update_fields()
+
+    @property
+    def component(self) -> PtcField:
+        return self._fields['Component']
+
+    @component.setter
+    def component(self, value: str) -> None:
+        self._fields['Component'].value = value
+
+    @property
+    def variant(self) -> PtcField:
+        return self._fields['Variant']
+
+    @variant.setter
+    def variant(self, value: str) -> None:
+        self._fields['Variant'].value = value
+
+    @property
+    def contains_item(self) -> PtcField:
+        return self._fields['Contains Items']
+
+    @contains_item.setter
+    def contains_item(self, value: str) -> None:
+        self._fields['Contains Items'].value = value
+
+    @property
+    def belongs_to_work_item(self) -> PtcField:
+        return self._fields['Belongs To Work Item']
+
+    @belongs_to_work_item.setter
+    def belongs_to_work_item(self, value: str) -> None:
+        self._fields['Belongs To Work Item'].value = value
 
 class Sprint(PtcItem):
     """Attributes and Methods of a PTC Windchill Sprint Item"""
     def __init__(self, sprint_id):
         super().__init__(sprint_id)
-        self.responsible_team: PtcField             = PtcField('Responsible Team')
-        self.fields.append(self.responsible_team)
-
-        self.related_agile_product: PtcField        = PtcField('Related Agile Product')
-        self.fields.append(self.related_agile_product)
-
-        self.user_stories_in_sprint: PtcField       = PtcField('User Stories in Sprint')
-        self.fields.append(self.user_stories_in_sprint)
-
-        self.sprint_tested_by: PtcField             = PtcField('Sprint Tested By')
-        self.fields.append(self.sprint_tested_by)
-
-        self.tasks_in_sprint: PtcField              = PtcField('Tasks in Sprint')
-        self.fields.append(self.tasks_in_sprint)
-
-        self.total_planned_user_stories: PtcField   = PtcField('Total Planned User Stories')
-        self.fields.append(self.total_planned_user_stories)
-
-        self.total_planned_tasks: PtcField          = PtcField('Total Planned Tasks')
-        self.fields.append(self.total_planned_tasks)
-
-        self.released_in: PtcField                  = PtcField('Released In')
-        self.fields.append(self.released_in)
-
-        self.total_remaining_user_stories: PtcField = PtcField('Total Remaining User Stories')
-        self.fields.append(self.total_remaining_user_stories)
-
-        self.total_remaining_tasks: PtcField  = PtcField('Total Remaining Tasks')
-        self.fields.append(self.total_remaining_tasks)
+        self.fields.update(
+            {
+                'Responsible Team': PtcField('Responsible Team'),
+                'Related Agile Product': PtcField('Related Agile Product'),
+                'User Stories in Sprint': PtcField('User Stories in Sprint'),
+                'Sprint Tested By': PtcField('Sprint Tested By'),
+                'Tasks in Sprint': PtcField('Tasks in Sprint'),
+                'Total Planned User Stories': PtcField('Total Planned User Stories'),
+                'Total Planned Tasks': PtcField('Total Planned Tasks'),
+                'Released In': PtcField('Released In'),
+                'Total Remaining User Stories': PtcField('Total Remaining User Stories'),
+                'Total Remaining Tasks': PtcField('Total Remaining Tasks'),
+            }
+        )
 
         self.update_fields()
+
+    @property
+    def responsible_team(self) -> PtcField:
+        return self._fields['Responsible Team']
+
+    @responsible_team.setter
+    def responsible_team(self, value: str) -> None:
+        self._fields['Responsible Team'].value = value
+
+    @property
+    def related_agile_product(self) -> PtcField:
+        return self._fields['Related Agile Product']
+
+    @related_agile_product.setter
+    def related_agile_product(self, value: str) -> None:
+        self._fields['Related Agile Product'].value = value
+
+    @property
+    def user_stories_in_sprint(self) -> PtcField:
+        return self._fields['User Stories in Sprint']
+
+    @user_stories_in_sprint.setter
+    def user_stories_in_sprint(self, value: str) -> None:
+        self._fields['User Stories in Sprint'].value = value
+
+    @property
+    def sprint_tested_by(self) -> PtcField:
+        return self._fields['Sprint Tested By']
+
+    @sprint_tested_by.setter
+    def sprint_tested_by(self, value: str) -> None:
+        self._fields['Sprint Tested By'].value = value
+
+    @property
+    def tasks_in_sprint(self) -> PtcField:
+        return self._fields['Tasks in Sprint']
+
+    @tasks_in_sprint.setter
+    def tasks_in_sprint(self, value: str) -> None:
+        self._fields['Tasks in Sprint'].value = value
+
+    @property
+    def total_planned_user_stories(self) -> PtcField:
+        return self._fields['Total Planned User Stories']
+
+    @total_planned_user_stories.setter
+    def total_planned_user_stories(self, value: str) -> None:
+        self._fields['Total Planned User Stories'].value = value
+
+    @property
+    def total_planned_tasks(self) -> PtcField:
+        return self._fields['Total Planned Tasks']
+
+    @total_planned_tasks.setter
+    def total_planned_tasks(self, value: str) -> None:
+        self._fields['Total Planned Tasks'].value = value
+
+    @property
+    def released_in(self) -> PtcField:
+        return self._fields['Released In']
+
+    @released_in.setter
+    def released_in(self, value: str) -> None:
+        self._fields['Released In'].value = value
+
+    @property
+    def total_remaining_user_stories(self) -> PtcField:
+        return self._fields['Total Remaining User Stories']
+
+    @total_remaining_user_stories.setter
+    def total_remaining_user_stories(self, value: str) -> None:
+        self._fields['Total Remaining User Stories'].value = value
+
+    @property
+    def total_remaining_tasks(self) -> PtcField:
+        return self._fields['Total Remaining Tasks']
+
+    @total_remaining_tasks.setter
+    def total_remaining_tasks(self, value: str) -> None:
+        self._fields['Total Remaining Tasks'].value = value
 
 class Epic(PtcItem):
     """Attributes and Methods of a PTC Windchill User Story Item"""
     def __init__(self, epic_id):
         super().__init__(epic_id)
-        self.responsible_team: PtcField = PtcField('Responsible Team')
-        self.fields.append(self.responsible_team)
-
-        self.related_agile_product: PtcField = PtcField('Related Agile Product')
-        self.fields.append(self.related_agile_product)
-
-        self.split_into: PtcField = PtcField('Split Into')
-        self.fields.append(self.split_into)
-
-        self.total_user_stories_planned_in_epic: PtcField = PtcField('Total User Stories Planned in Epic')
-        self.fields.append(self.total_user_stories_planned_in_epic)
-
-        self.total_user_stories_implemented_in_epic: PtcField = PtcField('Total User Stories Implemented in Epic')
-        self.fields.append(self.total_user_stories_implemented_in_epic)
-
-        self.total_story_points_planned_in_epic: PtcField = PtcField('Total Story Points Planned in Epic')
-        self.fields.append(self.total_story_points_planned_in_epic)
-
-        self.remaining_story_points_in_epic: PtcField = PtcField('Remaining Story Points in Epic')
-        self.fields.append(self.remaining_story_points_in_epic)
-
-        self.included_in_sprints: PtcField = PtcField('Included in Sprints')
-        self.fields.append(self.included_in_sprints)
-
-        self.feature: PtcField = PtcField('Feature')
-        self.fields.append(self.feature)
-
-        self.cancelled_comment: PtcField = PtcField('Cancelled Comment')
-        self.fields.append(self.cancelled_comment)
+        self.fields.update(
+            {
+                'Responsible Team': PtcField('Responsible Team'),
+                'Related Agile Product': PtcField('Related Agile Product'),
+                'Split Into': PtcField('Split Into'),
+                'Total User Stories Planned in Epic': PtcField('Total User Stories Planned in Epic'),
+                'Total User Stories Implemented in Epic': PtcField('Total User Stories Implemented in Epic'),
+                'Total Story Points Planned in Epic': PtcField('Total Story Points Planned in Epic'),
+                'Remaining Story Points in Epic': PtcField('Remaining Story Points in Epic'),
+                'Included in Sprints': PtcField('Included in Sprints'),
+                'Feature': PtcField('Feature'),
+                'Cancelled Comment': PtcField('Cancelled Comment')
+            }
+        )
         self.update_fields()
+
+    @property
+    def split_into(self) -> PtcField:
+        return self._fields['Split Into']
+
+    @split_into.setter
+    def split_into(self, value: str) -> None:
+        self._fields['Split Into'].value = value
+
+    @property
+    def total_user_stories_planned_in_epic(self) -> PtcField:
+        return self._fields['Split Into']
+
+    @total_user_stories_planned_in_epic.setter
+    def total_user_stories_planned_in_epic(self, value: str) -> None:
+        self._fields['Total User Stories Planned in Epic'].value = value
+
+    @property
+    def total_user_stories_implemented_in_epic(self) -> PtcField:
+        return self._fields['Total User Stories Implemented in Epic']
+
+    @total_user_stories_implemented_in_epic.setter
+    def total_user_stories_implemented_in_epic(self, value: str) -> None:
+        self._fields['Total User Stories Implemented in Epic'].value = value
+
+    @property
+    def total_story_points_planned_in_epic(self) -> PtcField:
+        return self._fields['Total Story Points Planned in Epic']
+
+    @total_story_points_planned_in_epic.setter
+    def total_story_points_planned_in_epic(self, value: str) -> None:
+        self._fields['Total Story Points Planned in Epic'].value = value
+
+    @property
+    def remaining_story_points_in_epic(self) -> PtcField:
+        return self._fields['Remaining Story Points in Epic']
+
+    @remaining_story_points_in_epic.setter
+    def remaining_story_points_in_epic(self, value: str) -> None:
+        self._fields['Remaining Story Points in Epic'].value = value
+
+    @property
+    def included_in_sprints(self) -> PtcField:
+        return self._fields['Included in Sprints']
+
+    @included_in_sprints.setter
+    def included_in_sprints(self, value: str) -> None:
+        self._fields['Included in Sprints'].value = value
+
+    @property
+    def feature(self) -> PtcField:
+        return self._fields['Feature']
+
+    @feature.setter
+    def feature(self, value: str) -> None:
+        self._fields['Feature'].value = value
+
+    @property
+    def cancelled_comment(self) -> PtcField:
+        return self._fields['Cancelled Comment']
+
+    @cancelled_comment.setter
+    def cancelled_comment(self, value: str) -> None:
+        self._fields['Cancelled Comment'].value = value
+
+    @property
+    def responsible_team(self) -> PtcField:
+        return self._fields['Responsible Team']
+
+    @responsible_team.setter
+    def responsible_team(self, value: str) -> None:
+        self._fields['Responsible Team'].value = value
+
+    @property
+    def related_agile_product(self) -> PtcField:
+        return self._fields['Related Agile Product']
+
+    @related_agile_product.setter
+    def related_agile_product(self, value: str) -> None:
+        self._fields['Related Agile Product'].value = value
 
 class UserStory(PtcItem):
     """Attributes and Methods of a PTC Windchill User Story Item"""
     def __init__(self, us_id):
         super().__init__(us_id)
-
-        self.responsible_team: PtcField = PtcField('Responsible Team')
-        self.fields.append(self.responsible_team)
-
-        self.related_agile_product: PtcField = PtcField('Related Agile Product')
-        self.fields.append(self.related_agile_product)
-
-        self.split_into: PtcField = PtcField('Split Into')
-        self.fields.append(self.split_into)
-
-        self.total_related_tasks: PtcField = PtcField('Total Related Tasks')
-        self.fields.append(self.total_related_tasks)
-
-        self.user_story_included_in_sprint: PtcField = PtcField('User Story included in Sprint')
-        self.fields.append(self.user_story_included_in_sprint)
-
-        self.belongs_to: PtcField = PtcField('Belongs To')
-        self.fields.append(self.belongs_to)
-
-        self.component: PtcField = PtcField('Component')
-        self.fields.append(self.component)
-
-        self.function: PtcField = PtcField('Function')
-        self.fields.append(self.function)
-
-        self.variant: PtcField = PtcField('Variant')
-        self.fields.append(self.variant)
-
-        self.implementation_type: PtcField = PtcField('Implementation Type')
-        self.fields.append(self.implementation_type)
-
-        self.product_cybersecurity_classification: PtcField = PtcField('Product Cybersecurity Relevance')
-        self.fields.append(self.product_cybersecurity_classification)
-
-        self.functional_safety_classification: PtcField = PtcField('Functional Safety Classification')
-        self.fields.append(self.functional_safety_classification)
-
-        self.user_story_released_in: PtcField = PtcField('User Story Released In')
-        self.fields.append(self.user_story_released_in)
-
-        self.cancelled_comment: PtcField = PtcField('Cancelled Comment')
-        self.fields.append(self.cancelled_comment)
-
+        self.fields.update(
+            {
+            'Responsible Team': PtcField('Responsible Team'),
+            'Related Agile Product': PtcField('Related Agile Product'),
+            'Split Into': PtcField('Split Into'),
+            'Total Related Tasks': PtcField('Total Related Tasks'),
+            'User Story included in Sprint': PtcField('User Story included in Sprint'),
+            'Belongs To': PtcField('Belongs To'),
+            'Component': PtcField('Component'),
+            'Function': PtcField('Function'),
+            'Variant': PtcField('Variant'),
+            'Implementation Type': PtcField('Implementation Type'),
+            'Product Cybersecurity Relevance': PtcField('Product Cybersecurity Relevance'),
+            'Functional Safety Classification': PtcField('Functional Safety Classification'),
+            'User Story Released In': PtcField('User Story Released In'),
+            'Cancelled Comment': PtcField('Cancelled Comment'),
+            }
+        )
         self.update_fields()
         self.task_list = list()
         self.get_list_of_tasks()
+
+    @property
+    def responsible_team(self) -> PtcField:
+        return self._fields['Responsible Team']
+
+    @responsible_team.setter
+    def responsible_team(self, value: str) -> None:
+        self._fields['Responsible Team'].value = value
+
+    @property
+    def related_agile_product(self) -> PtcField:
+        return self._fields['Related Agile Product']
+
+    @related_agile_product.setter
+    def related_agile_product(self, value: str) -> None:
+        self._fields['Related Agile Product'].value = value
+
+    @property
+    def split_into(self) -> PtcField:
+        return self._fields['Split Into']
+
+    @split_into.setter
+    def split_into(self, value: str) -> None:
+        self._fields['Split Into'].value = value
+
+    @property
+    def total_related_tasks(self) -> PtcField:
+        return self._fields['Total Related Tasks']
+
+    @total_related_tasks.setter
+    def total_related_tasks(self, value: str) -> None:
+        self._fields['Total Related Tasks'].value = value
+
+    @property
+    def user_story_included_in_sprint(self) -> PtcField:
+        return self._fields['User Story included in Sprint']
+
+    @user_story_included_in_sprint.setter
+    def user_story_included_in_sprint(self, value: str) -> None:
+        self._fields['User Story included in Sprint'].value = value
+
+    @property
+    def belongs_to(self) -> PtcField:
+        return self._fields['Belongs To']
+
+    @belongs_to.setter
+    def belongs_to(self, value: str) -> None:
+        self._fields['Belongs To'].value = value
+
+    @property
+    def component(self) -> PtcField:
+        return self._fields['Component']
+
+    @component.setter
+    def component(self, value: str) -> None:
+        self._fields['Component'].value = value
+
+    @property
+    def function(self) -> PtcField:
+        return self._fields['Function']
+
+    @function.setter
+    def function(self, value: str) -> None:
+        self._fields['Function'].value = value
+
+    @property
+    def variant(self) -> PtcField:
+        return self._fields['Variant']
+
+    @variant.setter
+    def variant(self, value: str) -> None:
+        self._fields['Variant'].value = value
+
+    @property
+    def implementation_type(self) -> PtcField:
+        return self._fields['Implementation Type']
+
+    @implementation_type.setter
+    def implementation_type(self, value: str) -> None:
+        self._fields['Implementation Type'].value = value
+
+    @property
+    def product_cybersecurity_relevance(self) -> PtcField:
+        return self._fields['Product Cybersecurity Relevance']
+
+    @product_cybersecurity_relevance.setter
+    def product_cybersecurity_relevance(self, value: str) -> None:
+        self._fields['Product Cybersecurity Relevance'].value = value
+
+    @property
+    def functional_safety_classification(self) -> PtcField:
+        return self._fields['Functional Safety Classification']
+
+    @functional_safety_classification.setter
+    def functional_safety_classification(self, value: str) -> None:
+        self._fields['Functional Safety Classification'].value = value
+
+    @property
+    def user_story_released_in(self) -> PtcField:
+        return self._fields['User Story Released In']
+
+    @user_story_released_in.setter
+    def user_story_released_in(self, value: str) -> None:
+        self._fields['User Story Released In'].value = value
+
+    @property
+    def cancelled_comment(self) -> PtcField:
+        return self._fields['Cancelled Comment']
+
+    @cancelled_comment.setter
+    def cancelled_comment(self, value: str) -> None:
+        self._fields['Cancelled Comment'].value = value
 
     def get_list_of_tasks(self):
         spinto = self.split_into.value.replace(' ', '').split(',')
         for t in spinto:
             self.task_list.append(Task(t))
 
-    def set_sprint_id(self, sprint_id: str):
-        self.addfieldvalue(self.user_story_included_in_sprint.name, sprint_id)
-
-    def set_release(self, release_id: str):
-        self.addfieldvalue(self.user_story_released_in.name, release_id)
-
 class Task(PtcItem):
     """Attributes and Methods of a PTC Windchill Task Item"""
     def __init__(self, task_id):
         super().__init__(task_id)
+        self.fields.update(
+            {
+                'Responsible Team': PtcField('Responsible Team'),
+                'Total Actual Effort': PtcField('Total Actual Effort'),
+                'Total Estimated Effort': PtcField('Total Estimated Effort'),
+                'Date Completed': PtcField('Date Completed'),
+                'Task included in Sprint': PtcField('Task included in Sprint'),
+                'Belongs To': PtcField('Belongs To'),
+                'Is Input For': PtcField('Is Input For'),
+                'Is Input From': PtcField('Is Input From'),
+                'Cancelled Comment': PtcField('Cancelled Comment')
+            }
+        )
+        self.update_fields()
 
-        self.responsible_team: PtcField = PtcField('Responsible Team')
-        self.fields.append(self.responsible_team)
+    def __repr__(self) -> str:
+        return super().__repr__()
 
-        self.total_actual_effort: PtcField = PtcField('Total Actual Effort')
-        self.fields.append(self.total_actual_effort)
+    @property
+    def responsible_team(self) -> PtcField:
+        return self._fields['Responsible Team']
 
-        self.total_estimated_effort: PtcField = PtcField('Total Estimated Effort')
-        self.fields.append(self.total_estimated_effort)
+    @responsible_team.setter
+    def responsible_team(self, value: str) -> None:
+        self._fields['Responsible Team'].value = value
 
-        self.date_completed: PtcField = PtcField('Date Completed')
-        self.fields.append(self.date_completed)
+    @property
+    def total_actual_effort(self) -> PtcField:
+        return self._fields['Total Actual Effort']
 
-        self.task_included_in_sprint: PtcField = PtcField('Task included in Sprint')
-        self.fields.append(self.task_included_in_sprint)
+    @total_actual_effort.setter
+    def total_actual_effort(self, value: str) -> None:
+        self._fields['Total Actual Effort'].value = value
 
-        self.belongs_to: PtcField = PtcField('Belongs To')
-        self.fields.append(self.belongs_to)
+    @property
+    def total_estimated_effort(self) -> PtcField:
+        return self._fields['Total Estimated Effort']
 
-        self.is_input_for: PtcField = PtcField('Is Input For')
-        self.fields.append(self.is_input_for)
+    @total_estimated_effort.setter
+    def total_estimated_effort(self, value: str) -> None:
+        self._fields['Total Estimated Effort'].value = value
 
-        self.is_input_from: PtcField = PtcField('Is Input From')
-        self.fields.append(self.is_input_from)
+    @property
+    def date_completed(self) -> PtcField:
+        return self._fields['Date Completed']
 
-        self.cancelled_comment: PtcField = PtcField('Cancelled Comment')
-        self.fields.append(self.cancelled_comment)
+    @date_completed.setter
+    def date_completed(self, value: str) -> None:
+        self._fields['Date Completed'].value = value
 
-        super().update_fields()
+    @property
+    def task_included_in_sprint(self) -> PtcField:
+        return self._fields['Task included in Sprint']
+
+    @task_included_in_sprint.setter
+    def task_included_in_sprint(self, value: str) -> None:
+        self._fields['Task included in Sprint'].value = value
+
+    @property
+    def belongs_to(self) -> PtcField:
+        return self._fields['Belongs To']
+
+    @belongs_to.setter
+    def belongs_to(self, value: str) -> None:
+        self._fields['Belongs To'].value = value
+
+    @property
+    def is_input_for(self) -> PtcField:
+        return self._fields['Is Input For']
+
+    @is_input_for.setter
+    def is_input_for(self, value: str) -> None:
+        self._fields['Is Input For'].value = value
+
+    @property
+    def is_input_from(self) -> PtcField:
+        return self._fields['Is Input From']
+
+    @is_input_from.setter
+    def is_input_from(self, value: str) -> None:
+        self._fields['Is Input From'].value = value
+
+    @property
+    def cancelled_comment(self) -> PtcField:
+        return self._fields['Cancelled Comment']
+
+    @cancelled_comment.setter
+    def cancelled_comment(self, value: str) -> None:
+        self._fields['Cancelled Comment'].value = value
 
     def cancel_task(self, cancel_comment):
         """
         cancel_comment: Comment needed in order to cancel the task
         """
         self.im_editissue(self.cancelled_comment.name, cancel_comment)
-        self.im_editissue(self.state.name, STATE_CANCELLED)
+        self.im_editissue(self.state.name, 'Cancelled')
         self.update_fields()
         if self.state.value == 'Cancelled':
             print(f'Task {self.id.value} cancelled')
@@ -288,101 +638,170 @@ class AgileProduct(PtcItem):
 
     def __init__(self, ap_id):
         super().__init__(ap_id)
+        self.fields.update(
+            {
+                'Part Of': PtcField('Part Of'),
+                'Product Owner': PtcField('Product Owner'),
+                'Epic': PtcField('Epic'),
+                'Completed Epics': PtcField('Completed Epics'),
+                'Cancelled Epics': PtcField('Cancelled Epics'),
+                'Blocked Epics': PtcField('Blocked Epics'),
+                'Completed Epics Count': PtcField('Completed Epics Count'),
+                'Open Epics Count': PtcField('Open Epics Count'),
+                'Cancelled Epics Count': PtcField('Cancelled Epics Count'),
+                'Blocked Epics Count': PtcField('Blocked Epics Count'),
+                'Total Epics Count': PtcField('Total Epics Count'),
+                'User Story': PtcField('User Story'),
+            }
+        )
+        self.update_fields()
 
-        self.part_of = PtcField('Part Of')
-        self.fields.append(self.part_of)
+    @property
+    def part_of(self) -> PtcField:
+        return self._fields['Part Of']
 
-        self.product_owner = PtcField('Product Owner')
-        self.fields.append(self.product_owner)
+    @part_of.setter
+    def part_of(self, value: str) -> None:
+        self._fields['Part Of'].value = value
 
-        self.epic = PtcField('Epic')
-        self.fields.append(self.epic)
+    @property
+    def product_owner(self) -> PtcField:
+        return self._fields['Product Owner']
 
-        self.completed_epics = PtcField('Completed Epics')
-        self.fields.append(self.completed_epics)
+    @product_owner.setter
+    def product_owner(self, value: str) -> None:
+        self._fields['Product Owner'].value = value
 
-        self.cancelled_epics = PtcField('Cancelled Epics')
-        self.fields.append(self.cancelled_epics)
+    @property
+    def epic(self) -> PtcField:
+        return self._fields['Epic']
 
-        self.blocked_epics = PtcField('Blocked Epics')
-        self.fields.append(self.blocked_epics)
+    @epic.setter
+    def epic(self, value: str) -> None:
+        self._fields['Epic'].value = value
 
-        self.completed_epics_count = PtcField('Completed Epics Count')
-        self.fields.append(self.completed_epics_count)
+    @property
+    def completed_epics(self) -> PtcField:
+        return self._fields['Completed Epics']
 
-        self.open_epics_count = PtcField('Open Epics Count')
-        self.fields.append(self.open_epics_count)
+    @completed_epics.setter
+    def completed_epics(self, value: str) -> None:
+        self._fields['Completed Epics'].value = value
 
-        self.cancelled_epics_count = PtcField('Cancelled Epics Count')
-        self.fields.append(self.cancelled_epics_count)
+    @property
+    def cancelled_epics(self) -> PtcField:
+        return self._fields['Cancelled Epics']
 
-        self.blocked_epics_count = PtcField('Blocked Epics Count')
-        self.fields.append(self.blocked_epics_count)
+    @cancelled_epics.setter
+    def cancelled_epics(self, value: str) -> None:
+        self._fields['Cancelled Epics'].value = value
 
-        self.total_epics_count = PtcField('Total Epics Count')
-        self.fields.append(self.total_epics_count)
+    @property
+    def blocked_epics(self) -> PtcField:
+        return self._fields['Blocked Epics']
 
-        self.user_story = PtcField('User Story')
-        self.fields.append(self.user_story)
+    @blocked_epics.setter
+    def blocked_epics(self, value: str) -> None:
+        self._fields['Blocked Epics'].value = value
 
-        self.completed_user_stories = PtcField('Completed User Stories')
-        self.fields.append(self.completed_user_stories)
+    @property
+    def completed_epics_count(self) -> PtcField:
+        return self._fields['Completed Epics Count']
 
-        self.cancelled_user_stories = PtcField('Cancelled User Stories')
-        self.fields.append(self.cancelled_user_stories)
+    @completed_epics_count.setter
+    def completed_epics_count(self, value: str) -> None:
+        self._fields['Completed Epics Count'].value = value
 
-        self.blocked_user_stories = PtcField('Blocked User Stories')
-        self.fields.append(self.blocked_user_stories)
+    @property
+    def open_epics_count(self) -> PtcField:
+        return self._fields['Open Epics Count']
 
-        self.completed_user_stories_count = PtcField('Completed User Stories Count')
-        self.fields.append(self.completed_user_stories_count)
+    @open_epics_count.setter
+    def open_epics_count(self, value: str) -> None:
+        self._fields['Open Epics Count'].value = value
 
-        self.completed_user_stories_count = PtcField('Completed User Stories Count')
-        self.fields.append(self.completed_user_stories_count)
+    @property
+    def cancelled_epics_count(self) -> PtcField:
+        return self._fields['Cancelled Epics Count']
 
-        self.blocked_user_stories_count = PtcField('Blocked User Stories Count')
-        self.fields.append(self.blocked_user_stories_count)
+    @cancelled_epics_count.setter
+    def cancelled_epics_count(self, value: str) -> None:
+        self._fields['Cancelled Epics Count'].value = value
 
-        self.total_user_stories_count = PtcField('Total User Stories Count')
-        self.fields.append(self.total_user_stories_count)
+    @property
+    def blocked_epics_count(self) -> PtcField:
+        return self._fields['Blocked Epics Count']
 
-        self.open_tasks_count = PtcField('Open tasks Count')
-        self.fields.append(self.open_tasks_count)
+    @blocked_epics_count.setter
+    def blocked_epics_count(self, value: str) -> None:
+        self._fields['Blocked Epics Count'].value = value
 
-        self.completed_tasks_count = PtcField('Completed tasks Count')
-        self.fields.append(self.completed_tasks_count)
+    @property
+    def total_epics_count(self) -> PtcField:
+        return self._fields['Total Epics Count']
 
-        self.cancelled_tasks_count = PtcField('Cancelled tasks Count')
-        self.fields.append(self.cancelled_tasks_count)
+    @total_epics_count.setter
+    def total_epics_count(self, value: str) -> None:
+        self._fields['Total Epics Count'].value = value
 
-        self.total_tasks_count = PtcField('Total tasks Count')
-        self.fields.append(self.total_tasks_count)
+    @property
+    def user_story(self) -> PtcField:
+        return self._fields['User Story']
 
-        self.active_sprints = PtcField('Active Sprints')
-        self.fields.append(self.active_sprints)
-
-        self.completed_sprints = PtcField('Completed Sprints')
-        self.fields.append(self.completed_sprints)
-
-        self.cancelled_sprints = PtcField('Cancelled Sprints')
-        self.fields.append(self.cancelled_sprints)
-
-        self.total_sprints_count = PtcField('Total Sprints Count')
-        self.fields.append(self.total_sprints_count)
-
-        self.open_sprints_count = PtcField('Open Sprints Count')
-        self.fields.append(self.open_sprints_count)
-
-        self.completed_sprints_count = PtcField('Completed Sprints Count')
-        self.fields.append(self.completed_sprints_count)
-
-        self.cancelled_sprints_count = PtcField('Cancelled Sprints Count')
-        self.fields.append(self.cancelled_sprints_count)
-
-        super().update_fields()
-
-def main() -> None:
-    pass
-
-if __name__ == '__main__':
-    main()
+    @user_story.setter
+    def user_story(self, value: str) -> None:
+        self._fields['User Story'].value = value
+#
+#         self.completed_user_stories = PtcField('Completed User Stories')
+#         self.fields.append(self.completed_user_stories)
+#
+#         self.cancelled_user_stories = PtcField('Cancelled User Stories')
+#         self.fields.append(self.cancelled_user_stories)
+#
+#         self.blocked_user_stories = PtcField('Blocked User Stories')
+#         self.fields.append(self.blocked_user_stories)
+#
+#         self.completed_user_stories_count = PtcField('Completed User Stories Count')
+#         self.fields.append(self.completed_user_stories_count)
+#
+#         self.completed_user_stories_count = PtcField('Completed User Stories Count')
+#         self.fields.append(self.completed_user_stories_count)
+#
+#         self.blocked_user_stories_count = PtcField('Blocked User Stories Count')
+#         self.fields.append(self.blocked_user_stories_count)
+#
+#         self.total_user_stories_count = PtcField('Total User Stories Count')
+#         self.fields.append(self.total_user_stories_count)
+#
+#         self.open_tasks_count = PtcField('Open tasks Count')
+#         self.fields.append(self.open_tasks_count)
+#
+#         self.completed_tasks_count = PtcField('Completed tasks Count')
+#         self.fields.append(self.completed_tasks_count)
+#
+#         self.cancelled_tasks_count = PtcField('Cancelled tasks Count')
+#         self.fields.append(self.cancelled_tasks_count)
+#
+#         self.total_tasks_count = PtcField('Total tasks Count')
+#         self.fields.append(self.total_tasks_count)
+#
+#         self.active_sprints = PtcField('Active Sprints')
+#         self.fields.append(self.active_sprints)
+#
+#         self.completed_sprints = PtcField('Completed Sprints')
+#         self.fields.append(self.completed_sprints)
+#
+#         self.cancelled_sprints = PtcField('Cancelled Sprints')
+#         self.fields.append(self.cancelled_sprints)
+#
+#         self.total_sprints_count = PtcField('Total Sprints Count')
+#         self.fields.append(self.total_sprints_count)
+#
+#         self.open_sprints_count = PtcField('Open Sprints Count')
+#         self.fields.append(self.open_sprints_count)
+#
+#         self.completed_sprints_count = PtcField('Completed Sprints Count')
+#         self.fields.append(self.completed_sprints_count)
+#
+#         self.cancelled_sprints_count = PtcField('Cancelled Sprints Count')
+#         self.fields.append(self.cancelled_sprints_count)
